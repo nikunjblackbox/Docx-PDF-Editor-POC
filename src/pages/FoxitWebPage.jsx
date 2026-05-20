@@ -1,7 +1,7 @@
 import { useCallback, useRef, useState } from 'react'
 import { saveAs } from 'file-saver'
 import FoxitPDFViewer from '../components/FoxitPDFViewer'
-import { hasFoxitLicense } from '../foxit/license'
+import { getFoxitLicenseHint, hasFoxitLicense } from '../foxit/license'
 
 function FoxitWebPage() {
   const pdfuiRef = useRef(null)
@@ -103,7 +103,9 @@ function FoxitWebPage() {
           Set <code>VITE_FOXIT_LICENSE_SN</code> and <code>VITE_FOXIT_LICENSE_KEY</code> in a
           <code>.env</code> file (see <code>.env.example</code>), then restart the dev server.
         </p>
-      ) : null}
+      ) : (
+        <p className="note">{getFoxitLicenseHint()}</p>
+      )}
 
       <div className="controls">
         <label className="upload-label">

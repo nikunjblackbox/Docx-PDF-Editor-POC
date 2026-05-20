@@ -1,4 +1,5 @@
 import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { getFoxitLicense } from '../foxit/license'
 import { loadFoxitSdk } from '../foxit/loadFoxitSdk'
 import { ensureFoxitWorker, FOXIT_LIB_PATH } from '../foxit/preloadFoxit'
 
@@ -34,11 +35,18 @@ const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
           return
         }
 
+        const license = getFoxitLicense()
         pdfui = new UIExtension.PDFUI({
           viewerOptions: {
             libPath: FOXIT_LIB_PATH,
             jr: {
               readyWorker,
+              ...(license
+                ? {
+                    licenseSN: license.licenseSN,
+                    licenseKey: license.licenseKey,
+                  }
+                : {}),
             },
           },
           renderTo: containerRef.current,
