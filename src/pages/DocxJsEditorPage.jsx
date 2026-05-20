@@ -1,0 +1,117 @@
+import { useRef, useState } from 'react'
+import { saveAs } from 'file-saver'
+import { DocxEditor } from '@eigenpal/docx-js-editor'
+import '@eigenpal/docx-js-editor/styles.css'
+
+function DocxJsEditorPage() {
+  const editorRef = useRef(null)
+  const [documentBuffer, setDocumentBuffer] = useState(null)
+  const [fileBaseName, setFileBaseName] = useState('docx-js-editor-document')
+  const [status, setStatus] = useState('Upload a DOCX file to begin.')
+  const [isBusy, setIsBusy] = useState(false)
+  const [error, setError] = useState('')
+
+  const handleUpload = async (event) => {
+    const [file] = event.target.files ?? []
+    if (!file) {
+      return
+    }
+
+    if (!file.name.toLowerCase().endsWith('.docx')) {
+      setError('Please upload a .docx file.')
+      event.target.value = ''
+      return
+    }
+
+    setIsBusy(true)
+    setError('')
+    setStatus(`Loading ${file.name}...`)
+
+    try {
+      const buffer = await file.arrayBuffer()
+      setDocumentBuffer(buffer)
+      setFileBaseName(file.name.replace(/\.docx$/i, '') || 'docx-js-editor-document')
+      setStatus(`Loaded ${file.name}`)
+    } catch {
+      setError('Failed to load document.')
+      setStatus('Load failed.')
+    } finally {
+      setIsBusy(false)
+      event.target.value = ''
+    }
+  }
+
+  const handleSave = async () => {
+    if (!editorRef.current) {
+      setError('Editor is not ready yet.')
+      return
+    }
+
+    setIsBusy(true)
+    setError('')
+    setStatus('Saving document...')
+
+    try {
+      const buffer = await editorRef.current.save({ selective: true })
+      if (!buffer) {
+        throw new Error('No document buffer returned')
+      }
+
+      const blob = new Blob([buffer], {
+        type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+      })
+      saveAs(blob, `${fileBaseName || 'docx-js-editor-document'}.docx`)
+      setStatus('Saved.')
+    } catch {
+      setError('Failed to save document.')
+      setStatus('Save failed.')
+    } finally {
+      setIsBusy(false)
+    }
+  }
+
+  return (
+    <section className="page">
+      <h2>docx-js-editor Route (MIT)</h2>
+      <p className="note">
+        Testing `@eigenpal/docx-js-editor` with native DOCX buffer open/save API.
+      </p>
+
+      <div className="controls">
+        <label className="upload-label">
+          <input
+            type="file"
+            accept=".docx"
+            disabled={isBusy}
+            onChange={handleUpload}
+          />
+          Open .docx
+        </label>
+        <button type="button" disabled={isBusy || !documentBuffer} onClick={handleSave}>
+          Save .docx
+        </button>
+      </div>
+
+      <p className="note">Status: {status}</p>
+      {error ? <p className="error">{error}</p> : null}
+
+      <section className="editor-wrapper docx-js-wrapper">
+        {documentBuffer ? (
+          <DocxEditor
+            ref={editorRef}
+            documentBuffer={documentBuffer}
+            mode="editing"
+            onChange={() => {}}
+          />
+        ) : (
+          <div className="empty-state">Open a .docx file to start editing.</div>
+        )}
+      </section>
+      <p className="note">
+        License: MIT. Best for POC evaluation where you want open-source DOCX-first editing.
+      </p>
+    </section>
+  )
+}
+
+export default DocxJsEditorPage
