@@ -24,4 +24,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
-saved-docx/*
+sample-xfa/
+sample-acroform/
+saved-docx/
+saved-pdf/

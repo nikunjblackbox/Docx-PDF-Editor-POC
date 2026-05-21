@@ -43,10 +43,16 @@ export async function triggerFoxitBuiltinDownload(pdfui) {
 }
 
 /**
- * Export PDF for download. Returns a File when using getFile API,
- * or null when the built-in Foxit download dialog was triggered instead.
+ * Export PDF as a File via getFile API.
+ * @param {{ allowBuiltinFallback?: boolean }} [options]
  */
-export async function exportFoxitPdfDoc(pdfui, fileName, storedPdfDoc = null) {
+export async function exportFoxitPdfDoc(
+  pdfui,
+  fileName,
+  storedPdfDoc = null,
+  options = {},
+) {
+  const { allowBuiltinFallback = true } = options
   const safeName = fileName.toLowerCase().endsWith('.pdf') ? fileName : `${fileName}.pdf`
 
   try {
@@ -56,8 +62,14 @@ export async function exportFoxitPdfDoc(pdfui, fileName, storedPdfDoc = null) {
       fileName: safeName,
       progressHandler: () => {},
     })
-  } catch {
-    await triggerFoxitBuiltinDownload(pdfui)
-    return null
+  } catch (error) {
+    if (allowBuiltinFallback) {
+      await triggerFoxitBuiltinDownload(pdfui)
+      return null
+    }
+
+    throw error instanceof Error
+      ? error
+      : new Error('Could not export PDF from Foxit viewer.')
   }
 }
