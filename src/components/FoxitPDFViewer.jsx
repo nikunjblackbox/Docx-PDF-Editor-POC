@@ -1,12 +1,13 @@
-import { forwardRef, useEffect, useImperativeHandle, useRef } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
+import { getFoxitLicense } from '../foxit/license'
 import { loadFoxitSdk } from '../foxit/loadFoxitSdk'
 import { ensureFoxitWorker, FOXIT_LIB_PATH } from '../foxit/preloadFoxit'
 
-const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
+const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError, onReady }, ref) {
   const containerRef = useRef(null)
-  const pdfuiRef = useRef(null)
+  const [pdfui, setPdfui] = useState(null)
 
-  useImperativeHandle(ref, () => pdfuiRef.current)
+  useImperativeHandle(ref, () => pdfui, [pdfui])
 
   useEffect(() => {
     const stylesheet = document.createElement('link')
@@ -21,7 +22,7 @@ const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
 
   useEffect(() => {
     let cancelled = false
-    let pdfui = null
+    let instance = null
 
     async function initViewer() {
       try {
@@ -34,11 +35,18 @@ const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
           return
         }
 
-        pdfui = new UIExtension.PDFUI({
+        const license = getFoxitLicense()
+        instance = new UIExtension.PDFUI({
           viewerOptions: {
             libPath: FOXIT_LIB_PATH,
             jr: {
               readyWorker,
+              ...(license
+                ? {
+                    licenseSN: license.licenseSN,
+                    licenseKey: license.licenseKey,
+                  }
+                : {}),
             },
           },
           renderTo: containerRef.current,
@@ -46,7 +54,8 @@ const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
           addons,
         })
 
-        pdfuiRef.current = pdfui
+        setPdfui(instance)
+        onReady?.(instance)
       } catch (error) {
         onError?.(
           error instanceof Error ? error.message : 'Failed to initialize Foxit viewer.',
@@ -57,7 +66,7 @@ const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
     initViewer()
 
     function handleResize() {
-      pdfuiRef.current?.redraw()
+      instance?.redraw?.()
     }
 
     window.addEventListener('resize', handleResize)
@@ -65,10 +74,10 @@ const FoxitPDFViewer = forwardRef(function FoxitPDFViewer({ onError }, ref) {
     return () => {
       cancelled = true
       window.removeEventListener('resize', handleResize)
-      pdfui?.destroy?.()
-      pdfuiRef.current = null
+      instance?.destroy?.()
+      setPdfui(null)
     }
-  }, [onError])
+  }, [onError, onReady])
 
   return <div className="foxit-pdf-viewer" ref={containerRef} />
 })

@@ -1,21 +1,31 @@
 import { useCallback, useRef, useState } from 'react'
 import { saveAs } from 'file-saver'
 import FoxitPDFViewer from '../components/FoxitPDFViewer'
-import { hasFoxitLicense } from '../foxit/license'
+import { exportFoxitPdfDoc, resolveFoxitPdfDoc } from '../foxit/exportPdf'
+import { getFoxitLicenseHint, hasFoxitLicense } from '../foxit/license'
 
 function FoxitWebPage() {
   const pdfuiRef = useRef(null)
+  const pdfDocRef = useRef(null)
   const [fileBaseName, setFileBaseName] = useState('foxit-document')
   const [hasDocument, setHasDocument] = useState(false)
   const [status, setStatus] = useState(
     hasFoxitLicense
-      ? 'Upload a PDF file to begin.'
+      ? 'Loading Foxit viewer...'
       : 'Add Foxit license keys to .env to enable this route.',
   )
   const [isBusy, setIsBusy] = useState(false)
+  const [isViewerReady, setIsViewerReady] = useState(false)
   const [error, setError] = useState('')
 
+  const handleViewerReady = useCallback(() => {
+    setIsViewerReady(true)
+    setError('')
+    setStatus('Viewer ready. Open a PDF file.')
+  }, [])
+
   const handleViewerError = useCallback((message) => {
+    setIsViewerReady(false)
     setError(message)
     setStatus('Viewer failed to load.')
   }, [])
@@ -33,8 +43,8 @@ function FoxitWebPage() {
     }
 
     const pdfui = pdfuiRef.current
-    if (!pdfui) {
-      setError('Foxit viewer is not ready yet.')
+    if (!pdfui || !isViewerReady) {
+      setError('Foxit viewer is still loading. Wait for "Viewer ready" and try again.')
       event.target.value = ''
       return
     }
@@ -44,13 +54,16 @@ function FoxitWebPage() {
     setStatus(`Loading ${file.name}...`)
 
     try {
-      const buffer = await file.arrayBuffer()
-      await pdfui.openPDFByFile(buffer, { fileName: file.name })
+      await pdfui.openPDFByFile(file, { fileName: file.name })
+      pdfDocRef.current = await resolveFoxitPdfDoc(pdfui).catch(() => null)
       setFileBaseName(file.name.replace(/\.pdf$/i, '') || 'foxit-document')
       setHasDocument(true)
       setStatus(`Loaded ${file.name}`)
-    } catch {
-      setError('Failed to open PDF.')
+    } catch (openError) {
+      pdfDocRef.current = null
+      const detail =
+        openError instanceof Error ? openError.message : 'Failed to open PDF.'
+      setError(detail)
       setStatus('Load failed.')
       setHasDocument(false)
     } finally {
@@ -66,8 +79,7 @@ function FoxitWebPage() {
       return
     }
 
-    const pdfDoc = pdfui.getCurrentPDFDoc()
-    if (!pdfDoc) {
+    if (!hasDocument) {
       setError('No PDF document is open.')
       return
     }
@@ -77,14 +89,18 @@ function FoxitWebPage() {
     setStatus('Saving PDF...')
 
     try {
-      const file = await pdfDoc.getFile(
-        { flags: 0, fileName: `${fileBaseName || 'foxit-document'}.pdf` },
-        {},
-      )
-      saveAs(file, `${fileBaseName || 'foxit-document'}.pdf`)
-      setStatus('Saved.')
-    } catch {
-      setError('Failed to save PDF.')
+      const downloadName = `${fileBaseName || 'foxit-document'}.pdf`
+      const file = await exportFoxitPdfDoc(pdfui, downloadName, pdfDocRef.current)
+      if (file) {
+        saveAs(file, downloadName)
+        setStatus('Saved.')
+      } else {
+        setStatus('Download started via Foxit viewer.')
+      }
+    } catch (saveError) {
+      const detail =
+        saveError instanceof Error ? saveError.message : 'Failed to save PDF.'
+      setError(detail)
       setStatus('Save failed.')
     } finally {
       setIsBusy(false)
@@ -103,14 +119,16 @@ function FoxitWebPage() {
           Set <code>VITE_FOXIT_LICENSE_SN</code> and <code>VITE_FOXIT_LICENSE_KEY</code> in a
           <code>.env</code> file (see <code>.env.example</code>), then restart the dev server.
         </p>
-      ) : null}
+      ) : (
+        <p className="note">{getFoxitLicenseHint()}</p>
+      )}
 
       <div className="controls">
         <label className="upload-label">
           <input
             type="file"
             accept=".pdf,application/pdf"
-            disabled={isBusy || !hasFoxitLicense}
+            disabled={isBusy || !hasFoxitLicense || !isViewerReady}
             onChange={handleUpload}
           />
           Open .pdf
@@ -129,7 +147,11 @@ function FoxitWebPage() {
 
       <section className="editor-wrapper foxit-wrapper">
         {hasFoxitLicense ? (
-          <FoxitPDFViewer ref={pdfuiRef} onError={handleViewerError} />
+          <FoxitPDFViewer
+            ref={pdfuiRef}
+            onReady={handleViewerReady}
+            onError={handleViewerError}
+          />
         ) : (
           <div className="empty-state">Configure Foxit license keys to load the viewer.</div>
         )}
