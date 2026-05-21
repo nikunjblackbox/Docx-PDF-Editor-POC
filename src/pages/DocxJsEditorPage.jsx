@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react'
-import { saveAs } from 'file-saver'
 import { DocxEditor } from '@eigenpal/docx-js-editor'
 import '@eigenpal/docx-js-editor/styles.css'
+import { saveBlobToLocalFolder } from '../utils/saveToLocalFolder'
 
 function DocxJsEditorPage() {
   const editorRef = useRef(null)
@@ -60,8 +60,9 @@ function DocxJsEditorPage() {
       const blob = new Blob([buffer], {
         type: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
       })
-      saveAs(blob, `${fileBaseName || 'docx-js-editor-document'}.docx`)
-      setStatus('Saved.')
+      const targetFileName = `${fileBaseName || 'docx-js-editor-document'}.docx`
+      const { folderName, fileName } = await saveBlobToLocalFolder(blob, targetFileName)
+      setStatus(`Saved to ${folderName}/${fileName}`)
     } catch {
       setError('Failed to save document.')
       setStatus('Save failed.')
@@ -110,6 +111,7 @@ function DocxJsEditorPage() {
       <p className="note">
         License: MIT. Best for POC evaluation where you want open-source DOCX-first editing.
       </p>
+      <p className="note">Saved files are written directly to the project&apos;s `saved-docx` folder.</p>
     </section>
   )
 }

@@ -1,9 +1,9 @@
 import { useState } from 'react'
 import mammoth from 'mammoth'
 import { asBlob } from 'html-docx-js-typescript'
-import { saveAs } from 'file-saver'
 import ReactQuill from 'react-quill-new'
 import 'react-quill-new/dist/quill.snow.css'
+import { saveBlobToLocalFolder } from '../utils/saveToLocalFolder'
 
 const DEFAULT_CONTENT = '<p>Start typing, or upload a .docx file.</p>'
 
@@ -71,8 +71,9 @@ function QuillFreePage() {
   <body>${content || '<p></p>'}</body>
 </html>`
       const blob = await asBlob(htmlDocument)
-      saveAs(blob, `${fileBaseName || 'quill-document'}.docx`)
-      setStatus('Saved')
+      const targetFileName = `${fileBaseName || 'quill-document'}.docx`
+      const { folderName, fileName } = await saveBlobToLocalFolder(blob, targetFileName)
+      setStatus(`Saved to ${folderName}/${fileName}`)
     } catch {
       setError('Failed to save DOCX.')
       setStatus('Save failed')
@@ -118,6 +119,7 @@ function QuillFreePage() {
         Note: DOCX import/export here is conversion-based and may lose advanced
         Word-only formatting.
       </p>
+      <p className="note">Saved files are written directly to the project&apos;s `saved-docx` folder.</p>
     </section>
   )
 }
