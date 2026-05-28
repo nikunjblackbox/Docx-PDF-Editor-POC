@@ -15,6 +15,32 @@ function DocxJsEditorPage() {
 	const [isBusy, setIsBusy] = useState(false);
 	const [error, setError] = useState('');
 
+	const centerDocumentCanvas = useCallback(() => {
+		const wrapperElement = editorWrapperRef.current;
+		if (!wrapperElement) {
+			return;
+		}
+
+		const scrollContainers = [wrapperElement, ...wrapperElement.querySelectorAll('*')].filter(
+			(element) =>
+				element instanceof HTMLElement && element.scrollWidth - element.clientWidth > 8,
+		);
+		if (!scrollContainers.length) {
+			return;
+		}
+
+		const primaryContainer = scrollContainers.reduce((largest, candidate) => {
+			const largestArea = largest.scrollWidth * largest.clientHeight;
+			const candidateArea = candidate.scrollWidth * candidate.clientHeight;
+			return candidateArea > largestArea ? candidate : largest;
+		});
+
+		primaryContainer.scrollLeft = Math.max(
+			(primaryContainer.scrollWidth - primaryContainer.clientWidth) / 2,
+			0,
+		);
+	}, []);
+
 	const applyFitToScreenZoom = useCallback(() => {
 		const docxEditor = editorRef.current;
 		const wrapperElement = editorWrapperRef.current;
@@ -36,8 +62,12 @@ function DocxJsEditorPage() {
 
 		const zoom = Math.max(0.3, Math.min(1, availableWidth / pageWidth));
 		docxEditor.setZoom(zoom);
+		window.requestAnimationFrame(() => {
+			centerDocumentCanvas();
+		});
+		window.setTimeout(centerDocumentCanvas, 80);
 		return true;
-	}, []);
+	}, [centerDocumentCanvas]);
 
 	useEffect(() => {
 		let isActive = true;
@@ -126,7 +156,7 @@ function DocxJsEditorPage() {
 			window.removeEventListener('resize', handleViewportResize);
 			window.removeEventListener('orientationchange', handleViewportResize);
 		};
-	}, [applyFitToScreenZoom, documentBuffer]);
+	}, [applyFitToScreenZoom, centerDocumentCanvas, documentBuffer]);
 
 	const handleUpload = async (event) => {
 		const [file] = event.target.files ?? [];
