@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { DocxEditor } from '@eigenpal/docx-js-editor';
 import '@eigenpal/docx-js-editor/styles.css';
 import { saveBlobToLocalFolder } from '../utils/saveToLocalFolder';
@@ -8,11 +8,36 @@ const DEFAULT_DOCX_URL = `/${encodeURIComponent(DEFAULT_DOCX_FILE)}`;
 
 function DocxJsEditorPage() {
 	const editorRef = useRef(null);
+	const editorWrapperRef = useRef(null);
 	const [documentBuffer, setDocumentBuffer] = useState(null);
 	const [fileBaseName, setFileBaseName] = useState('docx-js-editor-document');
 	const [status, setStatus] = useState('Upload a DOCX file to begin.');
 	const [isBusy, setIsBusy] = useState(false);
 	const [error, setError] = useState('');
+
+	const applyFitToScreenZoom = useCallback(() => {
+		const docxEditor = editorRef.current;
+		const wrapperElement = editorWrapperRef.current;
+		if (!docxEditor || !wrapperElement) {
+			return false;
+		}
+
+		const pagedEditorRef = docxEditor.getEditorRef?.();
+		const layout = pagedEditorRef?.getLayout?.();
+		const pageWidth = layout?.pageSize?.w || layout?.pages?.[0]?.size?.w;
+		if (!pageWidth) {
+			return false;
+		}
+
+		const availableWidth = Math.max(wrapperElement.clientWidth - 24, 0);
+		if (!availableWidth) {
+			return false;
+		}
+
+		const zoom = Math.max(0.3, Math.min(1, availableWidth / pageWidth));
+		docxEditor.setZoom(zoom);
+		return true;
+	}, []);
 
 	useEffect(() => {
 		let isActive = true;
@@ -57,6 +82,51 @@ function DocxJsEditorPage() {
 			isActive = false;
 		};
 	}, []);
+
+	useEffect(() => {
+		if (!documentBuffer) {
+			return undefined;
+		}
+
+		let isActive = true;
+		let resizeTimer = null;
+		let retryTimer = null;
+		let retries = 0;
+
+		const scheduleFitZoom = () => {
+			if (!isActive) {
+				return;
+			}
+
+			const applied = applyFitToScreenZoom();
+			if (applied || retries >= 20) {
+				return;
+			}
+
+			retries += 1;
+			retryTimer = window.setTimeout(scheduleFitZoom, 120);
+		};
+
+		const handleViewportResize = () => {
+			window.clearTimeout(resizeTimer);
+			resizeTimer = window.setTimeout(() => {
+				retries = 0;
+				scheduleFitZoom();
+			}, 120);
+		};
+
+		scheduleFitZoom();
+		window.addEventListener('resize', handleViewportResize);
+		window.addEventListener('orientationchange', handleViewportResize);
+
+		return () => {
+			isActive = false;
+			window.clearTimeout(resizeTimer);
+			window.clearTimeout(retryTimer);
+			window.removeEventListener('resize', handleViewportResize);
+			window.removeEventListener('orientationchange', handleViewportResize);
+		};
+	}, [applyFitToScreenZoom, documentBuffer]);
 
 	const handleUpload = async (event) => {
 		const [file] = event.target.files ?? [];
@@ -125,7 +195,7 @@ function DocxJsEditorPage() {
 	};
 
 	return (
-		<section className='page'>
+		<section className='page word-viewer-page'>
 			<h2>docx-js-editor Route (MIT)</h2>
 			<p className='note'>
 				Testing `@eigenpal/docx-js-editor` with native DOCX buffer open/save API.
@@ -153,7 +223,7 @@ function DocxJsEditorPage() {
 			<p className='note'>Status: {status}</p>
 			{error ? <p className='error'>{error}</p> : null}
 
-			<section className='editor-wrapper docx-js-wrapper'>
+			<section className='editor-wrapper docx-js-wrapper' ref={editorWrapperRef}>
 				{documentBuffer ? (
 					<DocxEditor
 						ref={editorRef}

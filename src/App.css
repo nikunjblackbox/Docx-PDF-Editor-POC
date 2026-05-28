@@ -165,3 +165,45 @@ button:disabled,
 	height: 100%;
 	min-height: 620px;
 }
+
+@media (max-width: 900px) {
+	.editor-wrapper {
+		height: 72vh;
+		min-height: 480px;
+	}
+
+	.foxit-pdf-viewer {
+		min-height: 480px;
+	}
+}
+
+@media (max-width: 640px) {
+	.app-shell {
+		padding: 0.85rem;
+	}
+
+	.header h1 {
+		font-size: 1.45rem;
+	}
+
+	.word-viewer-page .controls {
+		display: grid;
+		grid-template-columns: 1fr;
+	}
+
+	.word-viewer-page .upload-label,
+	.word-viewer-page button {
+		width: 100%;
+		box-sizing: border-box;
+		text-align: center;
+	}
+
+	.word-viewer-page .editor-wrapper {
+		height: 68vh;
+		min-height: 360px;
+	}
+
+	.word-viewer-page .docx-js-wrapper {
+		overflow: auto;
+	}
+}
